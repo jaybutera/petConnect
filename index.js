@@ -2,6 +2,7 @@ const express  = require('express');
 const mongoose = require('mongoose');
 const multer   = require('multer')
 const upload   = multer({ dest: 'uploads/' })
+//const aws      = require('aws-sdk');
 const app      = express();
 
 /**************************
@@ -22,13 +23,17 @@ const pet = mongoose.Schema({
    descriptors: [String],
 });
 
+/**************************
+ *         AWS           *
+**************************/
+
+//const rekognition = new AWS.Rekognition();
 
 /**************************
  *     START SERVER      *
 **************************/
 
-app.post('/search', upload.single('user_pet'), (req, res, next) => {
-   console.log('elo');
+app.post('/search', upload.single('pet'), (req, res, next) => {
    console.log( req.file );
 
    res.send({});
