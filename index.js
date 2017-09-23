@@ -4,6 +4,7 @@ const multer   = require('multer')
 const aws      = require('aws-sdk');
 const fs       = require('fs')
 const zlib     = require('zlib');
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/')
@@ -13,7 +14,6 @@ const storage = multer.diskStorage({
   }
 })
 const upload   = multer({ dest: 'uploads/', storage: storage })
-
 const app      = express();
 
 aws.config.update({region:'us-east-1'});
@@ -21,29 +21,33 @@ aws.config.update({region:'us-east-1'});
 /**************************
  *     MONGODB SETUP     *
 **************************/
-mongoose.connect('mongodb://localhost/pets', { useMongoClient: true, promiseLibrary: global.Promise });
-
+const connection = mongoose.connect('mongodb://localhost/pets', { useMongoClient: true, promiseLibrary: global.Promise }, err => {
+      if (err)
+         console.log(err);
+});
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
-db.once('open', () => {
-   console.log("hells ya");
-});
+
 
 // Pet Schema
-const pet = mongoose.Schema({
+const PetSchema = mongoose.Schema({
    url: String,
    img_url: String,
    descriptors: [String],
 });
+// Pet Model
+var PetModel = connection.model('labels', PetSchema);
 
 /**************************
  *         AWS           *
 **************************/
 
 const rekognition = new aws.Rekognition();
+/*
 const s3_pets     = new aws.S3({params: {Bucket: 'petsconnect', Key: 'myKey'}});
 const s3_searchable = new aws.S3({params: {Bucket: 'searchpets'}});
 const s3 = new aws.S3();
+*/
 
 var params = {
    Image: {
@@ -74,18 +78,30 @@ function compareDescriptors(query, sample) {
 app.post('/search', upload.single('pet'), (req, res, next) => {
 
    // Pull pet database to list
-   //var pets = db.inventory.find({});
-   //console.log(pets.length() + " pets in the db");
+   var pets = PetModel.find( (err, res) => {
+      console.log(res);
+      console.log(res.length() + " pets in the db");
 
-   // Load uploaded image into s3
-   //----------------------------
-   const body = fs.createReadStream( './'+req.file.path );//.pipe(zlib.createGzip());
-   var upl = new aws.S3.ManagedUpload({
-        params: {Bucket: 'searchpets', Key: req.file.filename, Body: body}
-   }).send( (err, data) => {
-      if (err)
-         console.log(err);
-      //console.log(data);
+      // Load uploaded image into s3
+      //----------------------------
+      const body = fs.createReadStream( './'+req.file.path );//.pipe(zlib.createGzip());
+      var upl = new aws.S3.ManagedUpload({
+           params: {Bucket: 'searchpets', Key: req.file.filename, Body: body}
+      }).send( (err, data) => {
+         if (err)
+            console.log(err);
+
+         // Detect labels of query image
+         //-----------------------------
+         params.Image.S3Object.Name = req.file.filename;
+         rekognition.detectLabels(params, (err, data) => {
+            if (err)
+               console.log(err);
+
+            const query_labels = data.Labels.map( x => x.Name );
+            console.log(query_labels);
+         });
+      });
 
       // Detect labels of query image
       //-----------------------------
@@ -94,14 +110,6 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
          console.log(err);
          console.log(data);
       });
-   });
-
-   // Detect labels of query image
-   //-----------------------------
-   params.Image.S3Object.Name = req.file.filename;
-   rekognition.detectLabels(params, (err, data) => {
-      console.log(err);
-      console.log(data);
    });
 
    res.send({});
