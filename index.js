@@ -1,12 +1,22 @@
 const express  = require('express');
 const mongoose = require('mongoose');
 const multer   = require('multer')
-const upload   = multer({ dest: 'uploads/' })
 const aws      = require('aws-sdk');
 const fs       = require('fs')
 const zlib     = require('zlib');
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/')
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '.jpeg')
+  }
+})
+const upload   = multer({ dest: 'uploads/', storage: storage })
 
 const app      = express();
+
+aws.config.update({region:'us-east-1'});
 
 /**************************
  *     MONGODB SETUP     *
@@ -38,7 +48,7 @@ const s3 = new aws.S3();
 var params = {
    Image: {
       S3Object: {
-         Bucket: "petsconnet",
+         Bucket: "searchpets",
          Name: ""
       }
    },
@@ -68,20 +78,31 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
    //console.log(pets.length() + " pets in the db");
 
    // Load uploaded image into s3
-   const body = fs.createReadStream( './'+req.file.path ).pipe(zlib.createGzip());
-   var upload = new aws.S3.ManagedUpload({
+   //----------------------------
+   const body = fs.createReadStream( './'+req.file.path );//.pipe(zlib.createGzip());
+   var upl = new aws.S3.ManagedUpload({
         params: {Bucket: 'searchpets', Key: req.file.filename, Body: body}
    }).send( (err, data) => {
       if (err)
          console.log(err);
       //console.log(data);
+
+      // Detect labels of query image
+      //-----------------------------
+      params.Image.S3Object.Name = req.file.filename;
+      rekognition.detectLabels(params, (err, data) => {
+         console.log(err);
+         console.log(data);
+      });
    });
 
-   /*
-   params.Name = req.
+   // Detect labels of query image
+   //-----------------------------
+   params.Image.S3Object.Name = req.file.filename;
    rekognition.detectLabels(params, (err, data) => {
+      console.log(err);
+      console.log(data);
    });
-   */
 
    res.send({});
 });
