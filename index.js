@@ -93,7 +93,7 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
 
       // Organize db list to pet objects
       var pets = data.map( x => { return {
-         'descriptors' : x.descriptors,
+         'descriptors' : x.descriptors,//.slice(5),
          'url' : x.url,
          'img_url' : x.img_url
       }});
@@ -105,7 +105,7 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
       console.log(req.file);
       //console.log(req.header);
       if (req.file === undefined) {
-         res.send('No file g\n' + req.header);
+         res.send('No file g');
          return;
       }
       const body = fs.createReadStream( './'+req.file.path );//.pipe(zlib.createGzip());
@@ -128,7 +128,7 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
             // Create list of distance metrics and sort
             //-----------------------------
             var count = 0;
-            const dist_list = pets.map( x => [compareDescriptors(query_labels, x.descriptors), count++] );
+            const dist_list = pets.map( x => [compareDescriptors(query_labels.slice(1,6), x.descriptors.slice(1,6)), count++] );
             dist_list.sort( (a,b) => {
                return b[0] - a[0];
             });
