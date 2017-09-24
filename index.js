@@ -4,6 +4,7 @@ const multer   = require('multer')
 const aws      = require('aws-sdk');
 const fs       = require('fs')
 const zlib     = require('zlib');
+const MongoClient = require('mongodb').MongoClient;
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -21,22 +22,29 @@ aws.config.update({region:'us-east-1'});
 /**************************
  *     MONGODB SETUP     *
 **************************/
+url = 'mongodb://localhost/pets'
+MongoClient.connect(url, (err, db) => {
+const labels = db.collection('labels.inventory');
+/*
 const connection = mongoose.connect('mongodb://localhost/pets', { useMongoClient: true, promiseLibrary: global.Promise }, err => {
       if (err)
          console.log(err);
 });
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
+*/
 
 
 // Pet Schema
+/*
 const PetSchema = mongoose.Schema({
    url: String,
    img_url: String,
    descriptors: [String],
 });
 // Pet Model
-var PetModel = connection.model('labels', PetSchema);
+var PetModel = connection.model('label', PetSchema);
+*/
 
 /**************************
  *         AWS           *
@@ -65,7 +73,7 @@ var params = {
 function compareDescriptors(query, sample) {
    // Count number of matching descriptors
    var count = 0;
-   for (var i = 0; i < query.length(); i++)
+   for (var i = 0; i < query.length; i++)
       count += sample.includes( query[i] ) ? 1 : 0;
 
    return count;
@@ -78,28 +86,45 @@ function compareDescriptors(query, sample) {
 app.post('/search', upload.single('pet'), (req, res, next) => {
 
    // Pull pet database to list
-   var pets = PetModel.find( (err, res) => {
-      console.log(res);
-      console.log(res.length() + " pets in the db");
+   labels.find({}).toArray( (err, res) => {
+      if (err)
+         console.log(err);
+
+      // Organize db list to pet objects
+      var pets = res.map( x => { return {
+         'descriptors' : x.descriptors,
+         'url' : x.url,
+         'img_url' : x.img_url
+      }});
+
+      //console.log(pets.length + " pets in the db");
 
       // Load uploaded image into s3
       //----------------------------
       const body = fs.createReadStream( './'+req.file.path );//.pipe(zlib.createGzip());
-      var upl = new aws.S3.ManagedUpload({
+      new aws.S3.ManagedUpload({
            params: {Bucket: 'searchpets', Key: req.file.filename, Body: body}
       }).send( (err, data) => {
          if (err)
-            console.log(err);
+            console.log("Error uploading image to S3\n" + err);
 
          // Detect labels of query image
          //-----------------------------
          params.Image.S3Object.Name = req.file.filename;
          rekognition.detectLabels(params, (err, data) => {
             if (err)
-               console.log(err);
+               console.log("Error with rekognition API" + err);
 
             const query_labels = data.Labels.map( x => x.Name );
             console.log(query_labels);
+
+            // Create list of distance metrics and sort
+            var count = 0;
+            const dist_list = pets.map( x => {count++; return [compareDescriptors(query_labels, x.descriptors), count] });
+            var d = dist_list.sort( (a,b) => {
+               return a[0] < b[0];
+            });
+            console.log(d);
          });
       });
 
@@ -117,4 +142,5 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
 
 app.listen(3000, () => {
    console.log("listening on port 3000");
+});
 });
