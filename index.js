@@ -86,12 +86,12 @@ function compareDescriptors(query, sample) {
 app.post('/search', upload.single('pet'), (req, res, next) => {
 
    // Pull pet database to list
-   labels.find({}).toArray( (err, res) => {
+   labels.find({}).toArray( (err, data) => {
       if (err)
          console.log(err);
 
       // Organize db list to pet objects
-      var pets = res.map( x => { return {
+      var pets = data.map( x => { return {
          'descriptors' : x.descriptors,
          'url' : x.url,
          'img_url' : x.img_url
@@ -119,12 +119,18 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
             console.log(query_labels);
 
             // Create list of distance metrics and sort
+            //-----------------------------
             var count = 0;
-            const dist_list = pets.map( x => {count++; return [compareDescriptors(query_labels, x.descriptors), count] });
-            var d = dist_list.sort( (a,b) => {
-               return a[0] < b[0];
+            const dist_list = pets.map( x => [compareDescriptors(query_labels, x.descriptors), count++] );
+            dist_list.sort( (a,b) => {
+               return b[0] - a[0];
             });
-            console.log(d);
+
+            var sorted_pets = [];
+            for (var i = 0; i < 25; i++)
+               sorted_pets.push( pets[ dist_list[i][1] ] );
+
+            res.send( sorted_pets );
          });
       });
 
@@ -136,8 +142,6 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
          console.log(data);
       });
    });
-
-   res.send({});
 });
 
 app.listen(3000, () => {
