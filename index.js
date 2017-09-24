@@ -84,6 +84,7 @@ function compareDescriptors(query, sample) {
 **************************/
 
 app.post('/search', upload.single('pet'), (req, res, next) => {
+   console.log(req);
 
    // Pull pet database to list
    labels.find({}).toArray( (err, data) => {
@@ -101,6 +102,12 @@ app.post('/search', upload.single('pet'), (req, res, next) => {
 
       // Load uploaded image into s3
       //----------------------------
+      console.log(req.file);
+      //console.log(req.header);
+      if (req.file === undefined) {
+         res.send('No file g\n' + req.header);
+         return;
+      }
       const body = fs.createReadStream( './'+req.file.path );//.pipe(zlib.createGzip());
       new aws.S3.ManagedUpload({
            params: {Bucket: 'searchpets', Key: req.file.filename, Body: body}
